@@ -20,5 +20,5 @@ inputs:
     description: 'The branch from which to run the pipeline (only supported for YAML pipelines)'
     required: false
 runs: 
-  using: 'node12' 
+  using: 'node16' 
   main: 'lib/main.js'
