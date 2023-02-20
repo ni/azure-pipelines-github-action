@@ -56,7 +56,7 @@ jest.mock('azure-devops-node-api', () => {
                 getBuildApi: async (url, handler) => await mockGetBuildApi(url, handler),
                 getReleaseApi: async () => await mockGetReleaseApi(),
             }
-        }) 
+        })
     }
 });
 
@@ -96,10 +96,10 @@ describe('Testing all functions of class PipelineHelper', () => {
 
     test('getErrorAndWarningMessageFromBuildResult() - concatenate and return errors', () => {
         expect(PipelineHelper.getErrorAndWarningMessageFromBuildResult([
-            { message: 'FirstMessage', result: 2},
-            { message: 'FirstIgnoredMessage', result: 0},
-            { message: 'SecondIgnoredMessage', result: 1},
-            { message: 'SecondMessage', result: 2},
+            { message: 'FirstMessage', result: 2 },
+            { message: 'FirstIgnoredMessage', result: 0 },
+            { message: 'SecondIgnoredMessage', result: 1 },
+            { message: 'SecondMessage', result: 2 },
         ])).toMatchObject({
             errorMessage: 'FirstMessage,SecondMessage',
             warningMessage: '',
@@ -108,8 +108,8 @@ describe('Testing all functions of class PipelineHelper', () => {
 
     test('getErrorAndWarningMessageFromBuildResult() - concatenate and return warnings if no errors', () => {
         expect(PipelineHelper.getErrorAndWarningMessageFromBuildResult([
-            { message: 'FirstIgnoredMessage', result: 0},
-            { message: 'SecondIgnoredMessage', result: 1},
+            { message: 'FirstIgnoredMessage', result: 0 },
+            { message: 'SecondIgnoredMessage', result: 1 },
         ])).toMatchObject({
             errorMessage: '',
             warningMessage: 'FirstIgnoredMessage,SecondIgnoredMessage',
@@ -127,7 +127,7 @@ describe('Testing all functions of class PipelineHelper', () => {
 
     test('getErrorAndWarningMessageFromBuildResult() - message from server error which do not come in form of array', () => {
         expect(PipelineHelper.getErrorAndWarningMessageFromBuildResult(
-            { serverError: { message: 'ServerErrorMessage'  } } as any
+            { serverError: { message: 'ServerErrorMessage' } } as any
         )).toMatchObject({
             errorMessage: 'ServerErrorMessage',
             warningMessage: '',
@@ -160,23 +160,32 @@ describe('Testing all functions of class UrlParser', () => {
     });
 
     test('GetCollectionUrlBase() - throw error if invalid url', () => {
-        expect(() =>  UrlParser.GetCollectionUrlBase('/')).toThrow(`Failed to parse project url: "${'/'}". Specify the valid project url (eg, https://dev.azure.com/organization/project-name or https://server.example.com:8080/tfs/DefaultCollection/project-name)) and try again.`);
+        expect(() => UrlParser.GetCollectionUrlBase('/')).toThrow(`Failed to parse project url: "${'/'}". Specify the valid project url (eg, https://dev.azure.com/organization/project-name or https://server.example.com:8080/tfs/DefaultCollection/project-name)) and try again.`);
     });
 });
 
 describe('Testing all functions of class PipelineRunner', () => {
-    test('start() - regular run using env variables and inputs to trigger a run', async () => {
-        jest.spyOn(core, 'getInput').mockImplementation((input, options) => {
+    var mockInputs;
+
+    beforeEach(() => {
+        jest.spyOn(core, 'getInput').mockImplementation((name, options) => {
             process.env['GITHUB_REPOSITORY'] = 'repo_name';
             process.env['GITHUB_REF'] = 'releases';
             process.env['GITHUB_SHA'] = 'sampleSha';
-
-            if (input == 'azure-devops-project-url') return 'https://dev.azure.com/organization/my-project';
-            if (input == 'azure-pipeline-name') return 'my-pipeline';
-            if (input == 'azure-devops-token') return 'my-token';
+            return mockInputs[name];
         });
+        // Clear the static constructor
+        TaskParameters['taskparams'] = null;
+    })
+
+    test('start() - regular run using env variables and inputs to trigger a run', async () => {
         jest.spyOn(core, 'debug').mockImplementation();
         jest.spyOn(core, 'info').mockImplementation();
+        mockInputs = {
+            'azure-devops-project-url': 'https://dev.azure.com/organization/my-project',
+            'azure-pipeline-name': 'my-pipeline',
+            'azure-devops-token': 'my-token'
+        }
         mockBuildDefinitions = [{
             id: 5
         }];
@@ -217,19 +226,68 @@ describe('Testing all functions of class PipelineRunner', () => {
         expect(mockQueueBuild).toBeCalledWith(expectedBuild, 'my-project', true);
     });
 
-    test('start() - set core failed in RunYamlPipeline if result has errors', async () => {
-        jest.spyOn(core, 'getInput').mockImplementation((input, options) => {
-            process.env['GITHUB_REPOSITORY'] = 'repo_name';
-            process.env['GITHUB_REF'] = 'releases';
-            process.env['GITHUB_SHA'] = 'sampleSha';
+    test('start() - regular run using inputs to trigger a run with optional inputs', async () => {
+        jest.spyOn(core, 'debug').mockImplementation();
+        jest.spyOn(core, 'info').mockImplementation();
+        mockInputs = {
+            'azure-devops-project-url': 'https://dev.azure.com/organization/my-project',
+            'azure-pipeline-name': 'my-pipeline',
+            'azure-devops-token': 'my-token',
+            'branch': 'my-branch',
+            'azure-pipeline-variables': '{"var1":"val1", "var2":"val2"}',
+            'azure-pipeline-parameters': '{"param1":"val1", "param2":"val2"}'
+        }
+        mockBuildDefinitions = [{
+            id: 5
+        }];
+        mockBuildDefinition = {
+            id: 5,
+            repository: {
+                id: 'repo',
+                type: 'Devops'
+            },
+            project: {
+                id: 'my-project'
+            },
+        }
+        mockQueueBuildResult = {
+            _links: {
+                web: {
+                    href: 'linkToRun'
+                }
+            }
+        };
+        expect(await (new PipelineRunner(TaskParameters.getTaskParams())).start()).toBeUndefined();
+        expect(mockGetPersonalAccessTokenHandler).toBeCalledWith('my-token');
+        expect(mockGetBuildApi).toBeCalled();
+        expect(mockGetDefinitions).toBeCalledWith('my-project', 'my-pipeline');
+        expect(mockGetDefinition).toBeCalledWith('my-project', 5);
+        const expectedBuild = {
+            definition: {
+                id: 5,
+            },
+            project: {
+                id: 'my-project',
+            },
+            reason: 1967,
 
-            if (input == 'azure-devops-project-url') return 'https://dev.azure.com/organization/my-project';
-            if (input == 'azure-pipeline-name') return 'my-pipeline';
-            if (input == 'azure-devops-token') return 'my-token';
-        });
+            sourceBranch: "my-branch",
+            sourceVersion: null,
+            parameters: '{"var1":"val1", "var2":"val2"}',
+            templateParameters: { "param1": "val1", "param2": "val2" }
+        }
+        expect(mockQueueBuild).toBeCalledWith(expectedBuild, 'my-project', true);
+    });
+
+    test('start() - set core failed in RunYamlPipeline if result has errors', async () => {
         jest.spyOn(core, 'debug').mockImplementation();
         jest.spyOn(core, 'info').mockImplementation();
         jest.spyOn(core, 'setFailed').mockImplementation();
+        mockInputs = {
+            'azure-devops-project-url': 'https://dev.azure.com/organization/my-project',
+            'azure-pipeline-name': 'my-pipeline',
+            'azure-devops-token': 'my-token'
+        }
         mockBuildDefinitions = [{
             id: 5
         }];
@@ -246,6 +304,7 @@ describe('Testing all functions of class PipelineRunner', () => {
         mockQueueBuildResult = {
             validationResults: [{}]
         };
+        // Clear static parameters so new inputs are read
         expect(await (new PipelineRunner(TaskParameters.getTaskParams())).start()).toBeUndefined();
         expect(mockGetPersonalAccessTokenHandler).toBeCalledWith('my-token');
         expect(mockGetBuildApi).toBeCalled();
@@ -267,18 +326,14 @@ describe('Testing all functions of class PipelineRunner', () => {
     });
 
     test('start() - set core failed in case of invalid response', async () => {
-        jest.spyOn(core, 'getInput').mockImplementation((input, options) => {
-            process.env['GITHUB_REPOSITORY'] = 'repo_name';
-            process.env['GITHUB_REF'] = 'releases';
-            process.env['GITHUB_SHA'] = 'sampleSha';
-
-            if (input == 'azure-devops-project-url') return 'https://dev.azure.com/organization/my-project';
-            if (input == 'azure-pipeline-name') return 'my-pipeline';
-            if (input == 'azure-devops-token') return 'my-token';
-        });
         jest.spyOn(core, 'debug').mockImplementation();
         jest.spyOn(core, 'info').mockImplementation();
         jest.spyOn(core, 'setFailed').mockImplementation();
+        mockInputs = {
+            'azure-devops-project-url': 'https://dev.azure.com/organization/my-project',
+            'azure-pipeline-name': 'my-pipeline',
+            'azure-devops-token': 'my-token'
+        }
         mockBuildDefinitions = [{}, {}];
 
         expect(await (new PipelineRunner(TaskParameters.getTaskParams())).start()).toBeUndefined();
@@ -289,18 +344,14 @@ describe('Testing all functions of class PipelineRunner', () => {
     });
 
     test('start() - trigger designer pipeline in case of PipelineNotFoundError', async () => {
-        jest.spyOn(core, 'getInput').mockImplementation((input, options) => {
-            process.env['GITHUB_REPOSITORY'] = 'repo_name';
-            process.env['GITHUB_REF'] = 'releases';
-            process.env['GITHUB_SHA'] = 'sampleSha';
-
-            if (input == 'azure-devops-project-url') return 'https://dev.azure.com/organization/my-project';
-            if (input == 'azure-pipeline-name') return 'my-pipeline';
-            if (input == 'azure-devops-token') return 'my-token';
-        });
         jest.spyOn(core, 'debug').mockImplementation();
         jest.spyOn(core, 'info').mockImplementation();
         jest.spyOn(core, 'setFailed').mockImplementation();
+        mockInputs = {
+            'azure-devops-project-url': 'https://dev.azure.com/organization/my-project',
+            'azure-pipeline-name': 'my-pipeline',
+            'azure-devops-token': 'my-token'
+        }
         mockBuildDefinitions = null;
         mockReleaseDefinitions = [{
             id: 5,
@@ -321,8 +372,8 @@ describe('Testing all functions of class PipelineRunner', () => {
         expect(mockGetReleaseApi).toBeCalled();
         expect(mockGetReleaseDefinitions).toBeCalledWith('my-project', 'my-pipeline', 4);
         const expectedRelease = {
-            artifacts: [], 
-            definitionId: 5, 
+            artifacts: [],
+            definitionId: 5,
             reason: 2
         };
         expect(mockCreateRelease).toBeCalledWith(expectedRelease, "my-project");
