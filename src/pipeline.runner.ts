@@ -73,13 +73,17 @@ export class PipelineRunner {
         let sourceBranch = null;
         let sourceVersion = null;
 
-        // If definition is linked to existing github repo, pass github source branch and source version to build
-        if (p.equals(repositoryId, this.repository) && p.equals(repositoryType, this.githubRepo)) {
-            core.debug("pipeline is linked to same Github repo");
-            sourceBranch = this.branch,
-                sourceVersion = this.commitId
+        if (this.taskParameters.branch) {
+            sourceBranch = this.taskParameters.branch;
         } else {
-            core.debug("pipeline is not linked to same Github repo");
+            // If definition is linked to existing github repo, pass github source branch and source version to build
+            if (p.equals(repositoryId, this.repository) && p.equals(repositoryType, this.githubRepo)) {
+                core.debug("pipeline is linked to same Github repo");
+                sourceBranch = this.branch,
+                    sourceVersion = this.commitId
+            } else {
+                core.debug("pipeline is not linked to same Github repo");
+            }
         }
 
         let build: BuildInterfaces.Build = {
@@ -92,7 +96,8 @@ export class PipelineRunner {
             sourceBranch: sourceBranch,
             sourceVersion: sourceVersion,
             reason: BuildInterfaces.BuildReason.Triggered,
-            parameters: this.taskParameters.azurePipelineVariables
+            parameters: this.taskParameters.azurePipelineVariables,
+            templateParameters: this.taskParameters.azurePipelineParameters
         } as BuildInterfaces.Build;
 
         log.LogPipelineTriggerInput(build);

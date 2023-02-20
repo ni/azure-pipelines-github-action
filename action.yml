@@ -10,9 +10,15 @@ inputs:
   azure-pipeline-variables: 
     description: 'Set/Overwrite pipeline variables' 
     required: false
+  azure-pipeline-parameters:
+    description: 'Set/Overwrite pipeline parameters (only supported for YAML pipelines)' 
+    required: false
   azure-devops-token: 
     description: 'Paste personal access token of the user as value of secret variable:AZURE_DEVOPS_TOKEN' 
-    required: true 
+    required: true
+  branch:
+    description: 'The branch from which to run the pipeline (only supported for YAML pipelines)'
+    required: false
 runs: 
   using: 'node12' 
-  main: 'lib/main.js' 
+  main: 'lib/main.js'
